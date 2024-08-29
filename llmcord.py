@@ -94,94 +94,21 @@ async def on_message(new_msg):
     ):
         return
 
-    # Build message reply chain and set user warnings
-    reply_chain = []
-    user_warnings = set()
-    curr_msg = new_msg
-    while curr_msg and len(reply_chain) < MAX_MESSAGES:
-        async with msg_nodes.setdefault(curr_msg.id, MsgNode()).lock:
-            curr_node = msg_nodes[curr_msg.id]
+    # Fetch full channel history with author tags
+    channel_history = []
+    async for message in new_msg.channel.history(limit=None):
+        author_tag = f"<@{message.author.id}>"
+        content = f"{message.content}\nauthor: {author_tag}\n---\n"
+        channel_history.append(content)
 
-            if not curr_node.data:
-                good_attachments = {type: [att for att in curr_msg.attachments if att.content_type and type in att.content_type] for type in ALLOWED_FILE_TYPES}
+    context = "\n".join(channel_history)
 
-                text = "\n".join(
-                    ([curr_msg.content] if curr_msg.content else [])
-                    + [embed.description for embed in curr_msg.embeds if embed.description]
-                    + [requests.get(att.url).text for att in good_attachments["text"]]
-                )
-                if curr_msg.content.startswith(discord_client.user.mention):
-                    text = text.replace(discord_client.user.mention, "", 1).lstrip()
-
-                if LLM_ACCEPTS_IMAGES and good_attachments["image"][:MAX_IMAGES]:
-                    content = ([{"type": "text", "text": text[:MAX_TEXT]}] if text[:MAX_TEXT] else []) + [
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:{att.content_type};base64,{base64.b64encode(requests.get(att.url).content).decode('utf-8')}"},
-                        }
-                        for att in good_attachments["image"][:MAX_IMAGES]
-                    ]
-                else:
-                    content = text[:MAX_TEXT]
-
-                data = {
-                    "content": content,
-                    "role": "assistant" if curr_msg.author == discord_client.user else "user",
-                }
-                if LLM_ACCEPTS_NAMES:
-                    data["name"] = str(curr_msg.author.id)
-
-                curr_node.data = data
-                curr_node.too_much_text = len(text) > MAX_TEXT
-                curr_node.too_many_images = len(good_attachments["image"]) > MAX_IMAGES
-                curr_node.has_bad_attachments = len(curr_msg.attachments) > sum(len(att_list) for att_list in good_attachments.values())
-
-                try:
-                    if (
-                        not curr_msg.reference
-                        and curr_msg.channel.type != discord.ChannelType.private
-                        and discord_client.user.mention not in curr_msg.content
-                        and (prev_msg_in_channel := ([m async for m in curr_msg.channel.history(before=curr_msg, limit=1)] or [None])[0])
-                        and any(prev_msg_in_channel.type == type for type in (discord.MessageType.default, discord.MessageType.reply))
-                        and prev_msg_in_channel.author == curr_msg.author
-                    ):
-                        curr_node.next_msg = prev_msg_in_channel
-                    else:
-                        next_is_thread_parent: bool = not curr_msg.reference and curr_msg.channel.type == discord.ChannelType.public_thread
-                        if next_msg_id := curr_msg.channel.id if next_is_thread_parent else getattr(curr_msg.reference, "message_id", None):
-                            while msg_nodes.setdefault(next_msg_id, MsgNode()).lock.locked():
-                                await asyncio.sleep(0)
-                            curr_node.next_msg = (
-                                (curr_msg.channel.starter_message or await curr_msg.channel.parent.fetch_message(next_msg_id))
-                                if next_is_thread_parent
-                                else (curr_msg.reference.cached_message or await curr_msg.channel.fetch_message(next_msg_id))
-                            )
-                except (discord.NotFound, discord.HTTPException, AttributeError):
-                    logging.exception("Error fetching next message in the chain")
-                    curr_node.fetch_next_failed = True
-
-            if curr_node.data["content"]:
-                reply_chain += [curr_node.data]
-
-            if curr_node.too_much_text:
-                user_warnings.add(f"⚠️ Max {MAX_TEXT:,} characters per message")
-            if curr_node.too_many_images:
-                user_warnings.add(f"⚠️ Max {MAX_IMAGES} image{'' if MAX_IMAGES == 1 else 's'} per message" if MAX_IMAGES > 0 else "⚠️ Can't see images")
-            if curr_node.has_bad_attachments:
-                user_warnings.add("⚠️ Unsupported attachments")
-            if curr_node.fetch_next_failed or (curr_node.next_msg and len(reply_chain) == MAX_MESSAGES):
-                user_warnings.add(f"⚠️ Only using last {len(reply_chain)} message{'' if len(reply_chain) == 1 else 's'}")
-
-            curr_msg = curr_node.next_msg
-
-    logging.info(f"Message received (user ID: {new_msg.author.id}, attachments: {len(new_msg.attachments)}, reply chain length: {len(reply_chain)}):\n{new_msg.content}")
-
-    # Generate and send response message(s) (can be multiple if response is long)
+    # Generate and send response message(s)
     response_msgs = []
     response_contents = []
     prev_chunk = None
     edit_task = None
-    messages = [get_system_prompt()] + reply_chain[::-1]
+    messages = [get_system_prompt(), {"role": "user", "content": context}]
     kwargs = dict(model=model, messages=messages, stream=True, extra_body=config["extra_api_parameters"])
     try:
         async with new_msg.channel.typing():
@@ -195,11 +122,8 @@ async def on_message(new_msg):
                             response_contents += [""]
 
                             if not USE_PLAIN_RESPONSES:
-                                reply_to_msg = new_msg if not response_msgs else response_msgs[-1]
                                 embed = discord.Embed(description=(prev_content + STREAMING_INDICATOR), color=EMBED_COLOR_INCOMPLETE)
-                                for warning in sorted(user_warnings):
-                                    embed.add_field(name=warning, value="", inline=False)
-                                response_msg = await reply_to_msg.reply(embed=embed, silent=True)
+                                response_msg = await new_msg.channel.send(embed=embed)
                                 msg_nodes[response_msg.id] = MsgNode(next_msg=new_msg)
                                 await msg_nodes[response_msg.id].lock.acquire()
                                 last_task_time = dt.now().timestamp()
@@ -208,7 +132,7 @@ async def on_message(new_msg):
                         response_contents[-1] += prev_content
 
                         if not USE_PLAIN_RESPONSES:
-                            is_final_edit: bool = curr_chunk.choices[0].finish_reason != None or len(response_contents[-1] + curr_content) > MAX_MESSAGE_LENGTH
+                            is_final_edit = curr_chunk.choices[0].finish_reason != None or len(response_contents[-1] + curr_content) > MAX_MESSAGE_LENGTH
 
                             if is_final_edit or ((not edit_task or edit_task.done()) and dt.now().timestamp() - last_task_time >= EDIT_DELAY_SECONDS):
                                 while edit_task and not edit_task.done():
@@ -221,9 +145,10 @@ async def on_message(new_msg):
                 prev_chunk = curr_chunk
 
         if USE_PLAIN_RESPONSES:
-            for content in response_contents:
-                reply_to_msg = new_msg if not response_msgs else response_msgs[-1]
-                response_msg = await reply_to_msg.reply(content=content)
+            full_response = "".join(response_contents)
+            split_responses = full_response.split("\n\n")
+            for content in split_responses:
+                response_msg = await new_msg.channel.send(content=content)
                 msg_nodes[response_msg.id] = MsgNode(next_msg=new_msg)
                 await msg_nodes[response_msg.id].lock.acquire()
                 response_msgs += [response_msg]
