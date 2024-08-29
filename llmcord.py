@@ -103,7 +103,7 @@ async def on_message(new_msg):
 
     context = "\n".join(channel_history)
 
-    logging.info(f"Message received (user ID: {new_msg.author.id}, attachments: {len(new_msg.attachments)}, reply chain length: {len(reply_chain)}):\n{new_msg.content}")
+    logging.info(f"Message received (user ID: {new_msg.author.id}, attachments: {len(new_msg.attachments)}:\n{new_msg.content}")
 
     # Generate and send response message(s)
     response_msgs = []
