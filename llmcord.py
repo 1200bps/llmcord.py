@@ -84,6 +84,10 @@ class LLMCordBot:
         }
 
     async def handle_message(self, new_msg):
+        # Prevent the bot from pinging itself
+        if new_msg.author == self.discord_client.user:
+            return
+
         # Check if the user is on cooldown
         current_time = dt.now().timestamp()
         last_ping_time = self.user_cooldowns.get(new_msg.author.id)
@@ -110,12 +114,18 @@ class LLMCordBot:
         channel_history = []
         async for message in new_msg.channel.history(limit=None):
             author_tag = f"<@{message.author.id}>"
-            content = f"{message.content}\n<|begin_metadata|>\nAuthor: {message.author.display_name}\nAuthor ID: {author_tag}\nTime: {message.created_at.strftime('%Y-%m-%d %H:%M:%S')}\n<|end_metadata|>\n\n\n"
+            member = message.author.guild.get_member(message.author.id)
+            if member.nick:
+                author_name = member.nick
+            else:
+                author_name = message.author.display_name
+            content = f"{message.content}\n<|begin_metadata|>\nAuthor: {author_name} ({message.author.display_name})\nAuthor ID: {author_tag}\nTime: {message.created_at.strftime('%Y-%m-%d %H:%M:%S')}\n<|end_metadata|>\n\n\n"
             channel_history.append(content)
 
         context = "\n".join(reversed(channel_history))
+        logging.info(context)
 
-        logging.info(f"Message received (user ID: {new_msg.author.id}, attachments: {len(new_msg.attachments)}:\n{new_msg.content}")
+        # logging.info(f"Message received (user ID: {new_msg.author.id}, attachments: {len(new_msg.attachments)}:\n{new_msg.content}")
 
         # Handle image attachments
         if self.LLM_ACCEPTS_IMAGES and new_msg.attachments:
