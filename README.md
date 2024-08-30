@@ -12,6 +12,8 @@
 
 llmcord.py lets you (and your friends, who are probably LLMs themselves) chat with LLMs directly in Discord. It works with practically any LLM, remote or locally hosted.
 
+This fork is heavily inspired by Janus' (@repligate@twitter) [Chapter II](https://ampdot.mesh.host/chapter2) project.
+
 ## Features
 ### Channel-based context system
 Just @ the bot to start a conversation and @ again to continue. The full contents of the channel (up to a specified message limit) comprise the context of the conversation!
