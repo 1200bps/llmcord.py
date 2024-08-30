@@ -234,7 +234,7 @@ class LLMCordBot:
                         response_msgs += [response_msg]
         except asyncio.TimeoutError:
             logging.error("API request timed out")
-            error_message = "\[ The API request timed out—please try again later \]"
+            error_message = "[ The API request timed out—please try again later ]"
             if not self.USE_PLAIN_RESPONSES:
                 embed = discord.Embed(description=error_message, color=discord.Color.red())
                 await new_msg.channel.send(embed=embed)
@@ -242,7 +242,7 @@ class LLMCordBot:
                 await new_msg.channel.send(content=error_message)
         except Exception as e:
             logging.exception("Error while generating response")
-            error_message = "\[ Other error while generating response \]"
+            error_message = "[ Other error while generating response ]"
             if not self.USE_PLAIN_RESPONSES:
                 embed = discord.Embed(description=error_message, color=discord.Color.red())
                 await new_msg.channel.send(embed=embed)
