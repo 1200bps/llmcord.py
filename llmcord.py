@@ -164,7 +164,7 @@ class LLMCordBot:
                 else:
                     logging.warning(f"Unsupported file type: {attachment.filename}")
 
-        logging.info(context)
+        # logging.info(context)
 
         # Generate and send response message(s)
         response_msgs = []
@@ -232,8 +232,22 @@ class LLMCordBot:
                         self.msg_nodes[response_msg.id] = MsgNode(next_msg=new_msg)
                         await self.msg_nodes[response_msg.id].lock.acquire()
                         response_msgs += [response_msg]
-        except:
+        except asyncio.TimeoutError:
+            logging.error("API request timed out")
+            error_message = "\[ The API request timed out—please try again later \]"
+            if not self.USE_PLAIN_RESPONSES:
+                embed = discord.Embed(description=error_message, color=discord.Color.red())
+                await new_msg.channel.send(embed=embed)
+            else:
+                await new_msg.channel.send(content=error_message)
+        except Exception as e:
             logging.exception("Error while generating response")
+            error_message = "\[ Other error while generating response \]"
+            if not self.USE_PLAIN_RESPONSES:
+                embed = discord.Embed(description=error_message, color=discord.Color.red())
+                await new_msg.channel.send(embed=embed)
+            else:
+                await new_msg.channel.send(content=error_message)
 
         # Create MsgNode data for response messages
         data = {
