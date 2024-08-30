@@ -131,10 +131,12 @@ class LLMCordBot:
         
         logging.info(f"Message received (user ID: {new_msg.author.id}, attachments: {len(new_msg.attachments)}:\n{new_msg.content}")
 
+        # Initialize this here to avoid AttributeError
+        self.images = []
+
         # Handle attachments
         if new_msg.attachments:
             image_count = 0
-            self.images = []
             for attachment in new_msg.attachments:
                 file_type = attachment.filename.split('.')[-1].lower()
                 if file_type in ['png', 'jpg', 'jpeg', 'gif', 'webp'] and self.LLM_ACCEPTS_IMAGES:
