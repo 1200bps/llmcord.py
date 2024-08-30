@@ -122,8 +122,8 @@ class LLMCordBot:
                 if member.nick:
                     author_name = member.nick
                 else:
-                    author_name = message.author.display_name
-            content = f"{message.content}\n<|begin_metadata|>\nAuthor: {author_name} ({message.author.display_name})\nAuthor ID: {author_tag}\nTime: {message.created_at.strftime('%Y-%m-%d %H:%M:%S')}\n<|end_metadata|>\n\n\n"
+                    author_name = message.author.name
+            content = f"{message.content}\n<|begin_metadata|>\nAuthor: {author_name} ({message.author.name})\nAuthor ID: {author_tag}\nTime: {message.created_at.strftime('%Y-%m-%d %H:%M:%S')}\n<|end_metadata|>\n\n\n"
             channel_history.append(content)
 
         context = "\n".join(reversed(channel_history))
