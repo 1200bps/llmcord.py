@@ -56,6 +56,9 @@ class LLMCordBot:
         self.MAX_MESSAGE_LENGTH = 2000 if self.USE_PLAIN_RESPONSES else (4096 - len(self.STREAMING_INDICATOR))
         self.MAX_MESSAGE_NODES = 100
 
+        self.user_cooldowns = {}  # Dictionary to store user cooldowns
+        self.COOLDOWN_SECONDS = 10  # Define your cooldown period here
+
         provider, self.model_name = self.config["model"].split("/", 1)
         self.base_url = self.config["providers"][provider]["base_url"]
         self.api_key = self.config["providers"][provider].get("api_key", "None")
@@ -81,6 +84,16 @@ class LLMCordBot:
         }
 
     async def handle_message(self, new_msg):
+        # Check if the user is on cooldown
+        current_time = dt.now().timestamp()
+        last_ping_time = self.user_cooldowns.get(new_msg.author.id)
+        if last_ping_time and (current_time - last_ping_time) < self.COOLDOWN_SECONDS:
+            logging.info(f"User {new_msg.author.id} is on cooldown.")
+            return
+
+        # Update the user's last ping time
+        self.user_cooldowns[new_msg.author.id] = current_time
+
         # Filter out unwanted messages
         if (
             new_msg.channel.type not in self.ALLOWED_CHANNEL_TYPES
@@ -97,7 +110,7 @@ class LLMCordBot:
         channel_history = []
         async for message in new_msg.channel.history(limit=None):
             author_tag = f"<@{message.author.id}>"
-            content = f"{message.content}\n<|begin_metadata|>\nAuthor: {message.author.display_name}\nAuthor ID: {author_tag}\n<|end_metadata|>\n\n\n"
+            content = f"{message.content}\n<|begin_metadata|>\nAuthor: {message.author.display_name}\nAuthor ID: {author_tag}\nTime: {message.created_at.strftime('%Y-%m-%d %H:%M:%S')}\n<|end_metadata|>\n\n\n"
             channel_history.append(content)
 
         context = "\n".join(reversed(channel_history))
