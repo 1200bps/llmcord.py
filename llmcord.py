@@ -123,7 +123,8 @@ class LLMCordBot:
                     author_name = member.nick
                 else:
                     author_name = message.author.name
-            content = f"{message.content}\n<|begin_metadata|>\nAuthor: {author_name} ({message.author.name})\nAuthor ID: {author_tag}\nTime: {message.created_at.strftime('%Y-%m-%d %H:%M:%S')}\n<|end_metadata|>\n\n\n"
+            # content = f"{message.content}\n<|begin_metadata|>\nAuthor: {author_name} ({message.author.name})\nAuthor ID: {author_tag}\nTime: {message.created_at.strftime('%Y-%m-%d %H:%M:%S')}\n<|end_metadata|>\n\n\n"
+            content = f"{message.content}\n<metadata>\n<author_nick>{author_name}</author_nick>\n<author_name>{message.author.name}</author_name>\n<author_id>{author_tag}</author_id>\n<datetime>{message.created_at.strftime('%Y-%m-%d %H:%M:%S')}</datetime>\n</metadata>\n\n\n"
             channel_history.append(content)
 
         context = "\n".join(reversed(channel_history))
@@ -152,12 +153,12 @@ class LLMCordBot:
                 elif file_type in ['txt', 'md', 'c', 'cpp', 'py', 'json']:
                     file_content = await attachment.read()
                     file_content_str = file_content.decode('utf-8')
-                    context += f"\n[File: {attachment.filename}]\n```\n{file_content_str}\n```\n"
+                    context += f"\n<file name=\"{attachment.filename}\">\n```\n{file_content_str}\n```\n</file>\n"
                     logging.info(f"Added text/source file attachment: {attachment.filename}")
                 else:
                     logging.warning(f"Unsupported file type: {attachment.filename}")
 
-        # logging.info(context)
+        logging.info(context)
 
         # Generate and send response message(s)
         response_msgs = []
@@ -188,8 +189,8 @@ class LLMCordBot:
 
                         response_contents[-1] += prev_content
 
-                        if "<|begin_metadata|>" in response_contents[-1]:
-                            # Stop inference upon encountering the stop token
+                        if "<metadata>" in response_contents[-1]:
+                            # Stop inference upon encountering hallucinated metadata
                             break
 
                         if not self.USE_PLAIN_RESPONSES:
