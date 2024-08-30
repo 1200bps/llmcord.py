@@ -38,8 +38,6 @@ class LLMCordBot:
         self.LLM_ACCEPTS_IMAGES = any(x in self.config["model"] for x in ("gpt-4-turbo", "gpt-4o", "claude-3", "gemini", "llava", "vision"))
         self.LLM_ACCEPTS_NAMES = "openai/" in self.config["model"]
 
-
-
         self.ALLOWED_FILE_TYPES = ("image", "text")
         self.ALLOWED_CHANNEL_TYPES = (discord.ChannelType.text, discord.ChannelType.public_thread, discord.ChannelType.private_thread, discord.ChannelType.private)
         self.ALLOWED_CHANNEL_IDS = self.config["allowed_channel_ids"]
@@ -58,7 +56,7 @@ class LLMCordBot:
         self.MAX_MESSAGE_LENGTH = 2000 if self.USE_PLAIN_RESPONSES else (4096 - len(self.STREAMING_INDICATOR))
         self.MAX_MESSAGE_NODES = 100
 
-        provider, model = self.config["model"].split("/", 1)
+        provider, self.model_name = self.config["model"].split("/", 1)
         self.base_url = self.config["providers"][provider]["base_url"]
         self.api_key = self.config["providers"][provider].get("api_key", "None")
         self.openai_client = AsyncOpenAI(base_url=self.base_url, api_key=self.api_key)
@@ -92,7 +90,7 @@ class LLMCordBot:
         ):
             return
         
-        # Wait for 10 seconds before collecting messages
+        # Wait before collecting messages
         await asyncio.sleep(1)
 
         # Fetch full channel history with author tags and metadata
@@ -120,10 +118,11 @@ class LLMCordBot:
         prev_chunk = None
         edit_task = None
         messages = [self.get_system_prompt(), {"role": "user", "content": context}]
-        kwargs = dict(model=self.config["model"].split("/", 1), messages=messages, stream=True, extra_body=self.config["extra_api_parameters"])
+        kwargs = dict(model=self.model_name, messages=messages, stream=True, extra_body=self.config["extra_api_parameters"])
         try:
             async with new_msg.channel.typing():
                 async for curr_chunk in await self.openai_client.chat.completions.create(**kwargs):
+
                     if prev_chunk:
                         prev_content = prev_chunk.choices[0].delta.content or ""
                         curr_content = curr_chunk.choices[0].delta.content or ""
@@ -163,10 +162,15 @@ class LLMCordBot:
                 full_response = "".join(response_contents)
                 split_responses = full_response.split("\n\n")
                 for content in split_responses:
-                    response_msg = await new_msg.channel.send(content=content)
-                    self.msg_nodes[response_msg.id] = MsgNode(next_msg=new_msg)
-                    await self.msg_nodes[response_msg.id].lock.acquire()
-                    response_msgs += [response_msg]
+                    while len(content) > self.MAX_MESSAGE_LENGTH:
+                        # Send the first 2000 characters and remove them from content
+                        await new_msg.channel.send(content=content[:self.MAX_MESSAGE_LENGTH])
+                        content = content[self.MAX_MESSAGE_LENGTH:]
+                    if content:  # Ensure the content is not empty
+                        response_msg = await new_msg.channel.send(content=content)
+                        self.msg_nodes[response_msg.id] = MsgNode(next_msg=new_msg)
+                        await self.msg_nodes[response_msg.id].lock.acquire()
+                        response_msgs += [response_msg]
         except:
             logging.exception("Error while generating response")
 
