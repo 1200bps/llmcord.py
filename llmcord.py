@@ -98,10 +98,10 @@ async def on_message(new_msg):
     channel_history = []
     async for message in new_msg.channel.history(limit=None):
         author_tag = f"<@{message.author.id}>"
-        content = f"{message.content}\nauthor: {author_tag}\n---\n"
+        content = f"\nauthor: {author_tag}\n{message.content}\n\n"
         channel_history.append(content)
 
-    context = "\n".join(channel_history)
+    context = "\n".join(reversed(channel_history))
 
     logging.info(f"Message received (user ID: {new_msg.author.id}, attachments: {len(new_msg.attachments)}:\n{new_msg.content}")
 
