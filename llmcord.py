@@ -93,12 +93,15 @@ async def on_message(new_msg):
         or new_msg.author.bot
     ):
         return
+    
+    # Wait for 10 seconds before collecting messages
+    await asyncio.sleep(10)
 
     # Fetch full channel history with author tags
     channel_history = []
     async for message in new_msg.channel.history(limit=None):
         author_tag = f"<@{message.author.id}>"
-        content = f"\nauthor: {author_tag}\n{message.content}\n\n"
+        content = f"\nauthor: {author_tag}\n{message.content}\n---\n"
         channel_history.append(content)
 
     context = "\n".join(reversed(channel_history))
