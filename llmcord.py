@@ -38,6 +38,8 @@ class LLMCordBot:
         self.LLM_ACCEPTS_IMAGES = any(x in self.config["model"] for x in ("gpt-4-turbo", "gpt-4o", "claude-3", "gemini", "llava", "vision"))
         self.LLM_ACCEPTS_NAMES = "openai/" in self.config["model"]
 
+
+
         self.ALLOWED_FILE_TYPES = ("image", "text")
         self.ALLOWED_CHANNEL_TYPES = (discord.ChannelType.text, discord.ChannelType.public_thread, discord.ChannelType.private_thread, discord.ChannelType.private)
         self.ALLOWED_CHANNEL_IDS = self.config["allowed_channel_ids"]
@@ -91,13 +93,13 @@ class LLMCordBot:
             return
         
         # Wait for 10 seconds before collecting messages
-        await asyncio.sleep(10)
+        await asyncio.sleep(1)
 
-        # Fetch full channel history with author tags
+        # Fetch full channel history with author tags and metadata
         channel_history = []
         async for message in new_msg.channel.history(limit=None):
             author_tag = f"<@{message.author.id}>"
-            content = f"\nauthor: {author_tag}\n{message.content}\n---\n"
+            content = f"{message.content}\n<|begin_metadata|>\nAuthor: {message.author.display_name} ({message.author.name})\nAuthor ID: {author_tag}\nSent at: {message.created_at.strftime('%Y-%m-%d %H:%M:%S')}\n<|end_metadata|>\n\n\n"
             channel_history.append(content)
 
         context = "\n".join(reversed(channel_history))
@@ -114,11 +116,11 @@ class LLMCordBot:
 
         # Generate and send response message(s)
         response_msgs = []
-        response_contents = []
+        response_contents = [""]  # Initialize with an empty string to avoid IndexError
         prev_chunk = None
         edit_task = None
         messages = [self.get_system_prompt(), {"role": "user", "content": context}]
-        kwargs = dict(model=self.config["model"], messages=messages, stream=True, extra_body=self.config["extra_api_parameters"])
+        kwargs = dict(model=self.config["model"].split("/", 1), messages=messages, stream=True, extra_body=self.config["extra_api_parameters"])
         try:
             async with new_msg.channel.typing():
                 async for curr_chunk in await self.openai_client.chat.completions.create(**kwargs):
@@ -127,7 +129,7 @@ class LLMCordBot:
                         curr_content = curr_chunk.choices[0].delta.content or ""
 
                         if response_contents or prev_content:
-                            if not response_contents or len(response_contents[-1] + prev_content) > self.MAX_MESSAGE_LENGTH:
+                            if len(response_contents[-1] + prev_content) > self.MAX_MESSAGE_LENGTH:
                                 response_contents += [""]
 
                                 if not self.USE_PLAIN_RESPONSES:
@@ -138,18 +140,22 @@ class LLMCordBot:
                                     self.last_task_time = dt.now().timestamp()
                                     response_msgs += [response_msg]
 
-                            response_contents[-1] += prev_content
+                        response_contents[-1] += prev_content
 
-                            if not self.USE_PLAIN_RESPONSES:
-                                is_final_edit = curr_chunk.choices[0].finish_reason != None or len(response_contents[-1] + curr_content) > self.MAX_MESSAGE_LENGTH
+                        if "<|begin_metadata|>" in response_contents[-1]:
+                            # Stop inference upon encountering the stop token
+                            break
 
-                                if is_final_edit or ((not edit_task or edit_task.done()) and dt.now().timestamp() - self.last_task_time >= self.EDIT_DELAY_SECONDS):
-                                    while edit_task and not edit_task.done():
-                                        await asyncio.sleep(0)
-                                    embed.description = response_contents[-1] if is_final_edit else (response_contents[-1] + self.STREAMING_INDICATOR)
-                                    embed.color = self.EMBED_COLOR_COMPLETE if is_final_edit else self.EMBED_COLOR_INCOMPLETE
-                                    edit_task = asyncio.create_task(response_msgs[-1].edit(embed=embed))
-                                    self.last_task_time = dt.now().timestamp()
+                        if not self.USE_PLAIN_RESPONSES:
+                            is_final_edit = curr_chunk.choices[0].finish_reason != None or len(response_contents[-1] + curr_content) > self.MAX_MESSAGE_LENGTH
+
+                            if is_final_edit or ((not edit_task or edit_task.done()) and dt.now().timestamp() - self.last_task_time >= self.EDIT_DELAY_SECONDS):
+                                while edit_task and not edit_task.done():
+                                    await asyncio.sleep(0)
+                                embed.description = response_contents[-1] if is_final_edit else (response_contents[-1] + self.STREAMING_INDICATOR)
+                                embed.color = self.EMBED_COLOR_COMPLETE if is_final_edit else self.EMBED_COLOR_INCOMPLETE
+                                edit_task = asyncio.create_task(response_msgs[-1].edit(embed=embed))
+                                self.last_task_time = dt.now().timestamp()
 
                     prev_chunk = curr_chunk
 

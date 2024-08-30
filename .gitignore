@@ -163,3 +163,4 @@ cython_debug/
 config.*
 restart.sh
 nohup.out
+ra-notion-prompt.txt
