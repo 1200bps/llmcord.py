@@ -135,34 +135,33 @@ class LLMCordBot:
         self.images = []
 
         # Handle attachments
-        if new_msg.attachments:
-            image_count = 0
-            for attachment in new_msg.attachments:
-                file_type = attachment.filename.split('.')[-1].lower()
-                if file_type in ['png', 'jpg', 'jpeg', 'gif', 'webp'] and self.LLM_ACCEPTS_IMAGES:
-                    image_count += 1
-                    if image_count > self.MAX_IMAGES:
-                        logging.warning(f"Too many images attached by user {new_msg.author.id}")
-                        # Set the too_many_images flag in the MsgNode for this message
-                        msg_node = self.msg_nodes.get(new_msg.id, MsgNode())
-                        msg_node.too_many_images = True
-                        self.msg_nodes[new_msg.id] = msg_node
-                        break   # Stop processing of remaining images, move on to other attachments
-                    else:
-                        self.images += [
-                            {
-                                "type": "image_url",
-                                "image_url": {"url": f"data:{attachment.content_type};base64,{base64.b64encode(requests.get(attachment.url).content).decode('utf-8')}"},
-                            }
-                        ]
-                        logging.info(f"Added image attachment: {attachment.filename}")
-                elif file_type in ['txt', 'md', 'c', 'cpp', 'py', 'json']:
-                    file_content = await attachment.read()
-                    file_content_str = file_content.decode('utf-8')
-                    context += f"\n<file name=\"{attachment.filename}\">\n```\n{file_content_str}\n```\n</file>\n"
-                    logging.info(f"Added text/source file attachment: {attachment.filename}")
+        image_count = 0
+        for attachment in new_msg.attachments:
+            file_type = attachment.filename.split('.')[-1].lower()
+            if file_type in ['png', 'jpg', 'jpeg', 'gif', 'webp'] and self.LLM_ACCEPTS_IMAGES:
+                image_count += 1
+                if image_count > self.MAX_IMAGES:
+                    logging.warning(f"Too many images attached by user {new_msg.author.id}")
+                    # Set the too_many_images flag in the MsgNode for this message
+                    msg_node = self.msg_nodes.get(new_msg.id, MsgNode())
+                    msg_node.too_many_images = True
+                    self.msg_nodes[new_msg.id] = msg_node
+                    break   # Stop processing of remaining images, move on to other attachments
                 else:
-                    logging.warning(f"Unsupported file type: {attachment.filename}")
+                    self.images += [
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{attachment.content_type};base64,{base64.b64encode(requests.get(attachment.url).content).decode('utf-8')}"},
+                        }
+                    ]
+                    logging.info(f"Added image attachment: {attachment.filename}")
+            elif file_type in ['txt', 'md', 'c', 'cpp', 'py', 'json']:
+                file_content = await attachment.read()
+                file_content_str = file_content.decode('utf-8')
+                context += f"\n<file name=\"{attachment.filename}\">\n```\n{file_content_str}\n```\n</file>\n"
+                logging.info(f"Added text/source file attachment: {attachment.filename}")
+            else:
+                logging.warning(f"Unsupported file type: {attachment.filename}")
 
         # logging.info(context)
 
@@ -175,10 +174,9 @@ class LLMCordBot:
         messages = [self.get_system_prompt()]
         if context:
             messages.append({"role": "user", "content": [{"type": "text", "text": context}]})
-        if self.images:
-            for image in self.images:
-                messages[-1]["content"].append(image)
-                logging.info(f"Image added to content dictionary in messages list successfully")
+        for image in self.images:
+            messages[-1]["content"].append(image)
+            logging.info(f"Image added to content dictionary in messages list successfully")
         kwargs = dict(model=self.model_name, messages=messages, stream=True, extra_body=self.config["extra_api_parameters"])
         try:
             async with new_msg.channel.typing():
@@ -242,7 +240,7 @@ class LLMCordBot:
                 await new_msg.channel.send(content=error_message)
         except Exception as e:
             logging.exception("Error while generating response")
-            error_message = "[ Other error while generating response ]"
+            error_message = "[ Unspecified error while generating response ]"
             if not self.USE_PLAIN_RESPONSES:
                 embed = discord.Embed(description=error_message, color=discord.Color.red())
                 await new_msg.channel.send(embed=embed)
