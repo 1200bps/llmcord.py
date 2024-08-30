@@ -66,6 +66,7 @@ class LLMCordBot:
 
         intents = discord.Intents.default()
         intents.message_content = True
+        intents.members = True
         activity = discord.CustomActivity(name=self.config["status_message"][:128] or "github.com/jakobdylanc/llmcord.py")
         self.discord_client = discord.Client(intents=intents, activity=activity)
 
@@ -114,11 +115,14 @@ class LLMCordBot:
         channel_history = []
         async for message in new_msg.channel.history(limit=None):
             author_tag = f"<@{message.author.id}>"
-            member = message.author.guild.get_member(message.author.id)
-            if member.nick:
-                author_name = member.nick
-            else:
+            if isinstance(message.channel, discord.DMChannel) or isinstance(message.channel, discord.GroupChannel):
                 author_name = message.author.display_name
+            else:
+                member = message.author.guild.get_member(message.author.id)
+                if member.nick:
+                    author_name = member.nick
+                else:
+                    author_name = message.author.display_name
             content = f"{message.content}\n<|begin_metadata|>\nAuthor: {author_name} ({message.author.display_name})\nAuthor ID: {author_tag}\nTime: {message.created_at.strftime('%Y-%m-%d %H:%M:%S')}\n<|end_metadata|>\n\n\n"
             channel_history.append(content)
 
