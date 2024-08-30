@@ -75,7 +75,7 @@ class LLMCordBot:
             await self.handle_message(new_msg)
 
     def get_system_prompt(self):
-        system_prompt_extras = [f"Current datetime: {dt.now().strftime('%Y-%m-%d %H:%M:%S')}."]
+        system_prompt_extras = [f"File attachments are provided to you inline, at the bottom of the context.\nCurrent datetime: {dt.now().strftime('%Y-%m-%d %H:%M:%S')}."]
         if self.LLM_ACCEPTS_NAMES:
             system_prompt_extras += ["User's names are their Discord IDs and should be typed as '<@ID>'."]
 
@@ -127,17 +127,37 @@ class LLMCordBot:
             channel_history.append(content)
 
         context = "\n".join(reversed(channel_history))
-        logging.info(context)
+        
+        logging.info(f"Message received (user ID: {new_msg.author.id}, attachments: {len(new_msg.attachments)}:\n{new_msg.content}")
 
-        # logging.info(f"Message received (user ID: {new_msg.author.id}, attachments: {len(new_msg.attachments)}:\n{new_msg.content}")
-
-        # Handle image attachments
-        if self.LLM_ACCEPTS_IMAGES and new_msg.attachments:
+        # Handle attachments
+        if new_msg.attachments:
+            image_count = 0
             for attachment in new_msg.attachments:
-                if attachment.filename.lower().endswith(('png', 'jpg', 'jpeg', 'gif', 'webp')):
-                    image_data = await attachment.read()
-                    image_base64 = base64.b64encode(image_data).decode('utf-8')
-                    context += f"\n[Image: {attachment.filename}](data:image/png;base64,{image_base64})\n"
+                file_type = attachment.filename.split('.')[-1].lower()
+                if file_type in ['png', 'jpg', 'jpeg', 'gif', 'webp'] and self.LLM_ACCEPTS_IMAGES:
+                    image_count += 1
+                    if image_count > self.MAX_IMAGES:
+                        logging.warning(f"Too many images attached by user {new_msg.author.id}")
+                        # Set the too_many_images flag in the MsgNode for this message
+                        msg_node = self.msg_nodes.get(new_msg.id, MsgNode())
+                        msg_node.too_many_images = True
+                        self.msg_nodes[new_msg.id] = msg_node
+                        break   # Stop processing of remaining images, move on to other attachments
+                    else:
+                        image_data = await attachment.read()
+                        image_base64 = base64.b64encode(image_data).decode('utf-8')
+                        context += f"\n[Image: {attachment.filename}](data:image/png;base64,{image_base64})\n"
+                        logging.info(f"Added image attachment: {attachment.filename}")
+                elif file_type in ['txt', 'md', 'c', 'cpp', 'py', 'json']:
+                    file_content = await attachment.read()
+                    file_content_str = file_content.decode('utf-8')
+                    context += f"\n[File: {attachment.filename}]\n```\n{file_content_str}\n```\n"
+                    logging.info(f"Added text/source file attachment: {attachment.filename}")
+                else:
+                    logging.warning(f"Unsupported file type: {attachment.filename}")
+
+        # logging.info(context)
 
         # Generate and send response message(s)
         response_msgs = []
