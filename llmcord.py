@@ -74,7 +74,7 @@ class LLMCordBot:
             await self.handle_message(new_msg)
 
     def get_system_prompt(self):
-        system_prompt_extras = [f"Today's date: {dt.now().strftime('%B %d %Y')}."]
+        system_prompt_extras = [f"Current datetime: {dt.now().strftime('%Y-%m-%d %H:%M:%S')}."]
         if self.LLM_ACCEPTS_NAMES:
             system_prompt_extras += ["User's names are their Discord IDs and should be typed as '<@ID>'."]
 
