@@ -97,7 +97,7 @@ class LLMCordBot:
         channel_history = []
         async for message in new_msg.channel.history(limit=None):
             author_tag = f"<@{message.author.id}>"
-            content = f"{message.content}\n<|begin_metadata|>\nAuthor: {message.author.display_name} ({message.author.name})\nAuthor ID: {author_tag}\nSent at: {message.created_at.strftime('%Y-%m-%d %H:%M:%S')}\n<|end_metadata|>\n\n\n"
+            content = f"{message.content}\n<|begin_metadata|>\nAuthor: {message.author.display_name} ({message.author.name})\nAuthor ID: {author_tag}\n<|end_metadata|>\n\n\n"
             channel_history.append(content)
 
         context = "\n".join(reversed(channel_history))

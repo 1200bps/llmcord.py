@@ -1,29 +1,26 @@
 <h1 align="center">
-  llmcord.py
+  llmcord.py – discount janus edition
 </h1>
 
 <h3 align="center"><i>
-  Talk to LLMs with your friends!
+  Talk to LLMs with your LLMs!
 </i></h3>
 
 <p align="center">
-  <img src="https://github.com/jakobdylanc/llmcord.py/assets/38699060/789d49fe-ef5c-470e-b60e-48ac03057443" alt="">
+  <img src="https://files.catbox.moe/pzb1un.png" alt="">
 </p>
 
-llmcord.py lets you (and your friends) chat with LLMs directly in Discord. It works with practically any LLM, remote or locally hosted.
+llmcord.py lets you (and your friends, who are probably LLMs themselves) chat with LLMs directly in Discord. It works with practically any LLM, remote or locally hosted.
 
 ## Features
-### Reply-based chat system
-Just @ the bot to start a conversation and reply to continue. Build conversations with reply chains!
+### Channel-based context system
+Just @ the bot to start a conversation and @ again to continue. The full contents of the channel (up to a specified message limit) comprise the context of the conversation!
 
 You can do things like:
-- Continue your own conversation or someone else's
-- "Rewind" a conversation by simply replying to an older message
-- @ the bot while replying to any message in your server to ask a question about it
+- Have free-flowing conversations with multiple human and nonhuman agents
 
 Additionally:
-- Back-to-back messages from the same user are automatically chained together. Just reply to the latest one and the bot will see all of them.
-- You can seamlessly move any conversation into a [thread](https://support.discord.com/hc/en-us/articles/4403205878423-Threads-FAQ). Just create a thread from any message and @ the bot inside to continue.
+- All messages in the context are tagged with author metadata, so the LLMs know who said what
 
 ### Choose any LLM
 llmcord.py supports remote models from:
@@ -43,14 +40,14 @@ Or use any other OpenAI compatible API server.
 ### And more:
 - Supports image attachments when using a vision model (like gpt-4o, claude-3, llava, etc.)
 - Supports text file attachments (.txt, .py, .c, etc.)
-- Customizable system prompt
+- Customizable system prompts per-agent
 - DM for private access (no @ required)
-- User identity aware (OpenAI API only)
+- User identity aware (enhanced with OpenAI models)
 - Streamed responses (turns green when complete, automatically splits into separate messages when too long)
 - Displays helpful warning messages when appropriate (like "⚠️ Only using last 25 messages" when the customizable message limit is exceeded)
 - Caches message data in a size-managed (no memory leaks) and mutex-protected (no race conditions) global dictionary to maximize efficiency and minimize Discord API calls
 - Fully asynchronous
-- 1 Python file, ~200 lines of code
+- 2 Python files, ??? lines of code (and growing!)
 
 ## Instructions
 Before you start, install Python and clone this git repo.
@@ -59,7 +56,7 @@ Before you start, install Python and clone this git repo.
 
 2. Create a copy of "config-example.json" named "config.json" and set it up (see below)
 
-3. Run the bot: `python llmcord.py` (the invite URL will print to the console)
+3. Run the bot: `nohup python3 main.py &` (the invite URL will print to the console)
 
 ### LLM settings:
 
@@ -81,21 +78,12 @@ Before you start, install Python and clone this git repo.
 | **allowed_role_ids** | A list of Discord role IDs that can use the bot. **Leave empty to allow everyone. Specifying at least one role also disables DMs.** |
 | **max_text** | The maximum amount of text allowed in a single message, including text from file attachments.<br />(Default: `100,000`) |
 | **max_images** | The maximum number of image attachments allowed in a single message. **Only applicable when using a vision model.**<br />(Default: `5`) |
-| **max_messages** | The maximum number of messages allowed in a reply chain.<br />(Default: `25`) |
+| **max_messages** | The maximum number of messages from the channel that are turned into context.<br />(Default: `75`) |
 | **use_plain_responses** | When set to `true` the bot's messages appear more like a regular user message. **This disables embeds, streamed responses and warning messages**.<br />(Default: `false`) |
 
 ## Notes
 - If you're having issues, try my suggestions [here](https://github.com/jakobdylanc/llmcord.py/issues/19)
 
-- Only models from OpenAI are "user identity aware" because only OpenAI API supports the message "name" property. Hopefully others support this in the future.
+- Only models from OpenAI are "user identity aware" because only OpenAI API supports the message "name" property. Other models are given message metadata (including author) inline with the messages themselves.
 
 - PRs are welcome :)
-
-## Star History
-<a href="https://star-history.com/#jakobdylanc/llmcord.py&Date">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=jakobdylanc/llmcord.py&type=Date&theme=dark" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=jakobdylanc/llmcord.py&type=Date" />
-    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=jakobdylanc/llmcord.py&type=Date" />
-  </picture>
-</a>
