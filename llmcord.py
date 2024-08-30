@@ -134,6 +134,7 @@ class LLMCordBot:
         # Handle attachments
         if new_msg.attachments:
             image_count = 0
+            self.images = []
             for attachment in new_msg.attachments:
                 file_type = attachment.filename.split('.')[-1].lower()
                 if file_type in ['png', 'jpg', 'jpeg', 'gif', 'webp'] and self.LLM_ACCEPTS_IMAGES:
@@ -146,9 +147,12 @@ class LLMCordBot:
                         self.msg_nodes[new_msg.id] = msg_node
                         break   # Stop processing of remaining images, move on to other attachments
                     else:
-                        image_data = await attachment.read()
-                        image_base64 = base64.b64encode(image_data).decode('utf-8')
-                        context += f"\n[Image: {attachment.filename}](data:image/png;base64,{image_base64})\n"
+                        self.images += [
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": f"data:{attachment.content_type};base64,{base64.b64encode(requests.get(attachment.url).content).decode('utf-8')}"},
+                            }
+                        ]
                         logging.info(f"Added image attachment: {attachment.filename}")
                 elif file_type in ['txt', 'md', 'c', 'cpp', 'py', 'json']:
                     file_content = await attachment.read()
@@ -165,7 +169,14 @@ class LLMCordBot:
         response_contents = [""]  # Initialize with an empty string to avoid IndexError
         prev_chunk = None
         edit_task = None
-        messages = [self.get_system_prompt(), {"role": "user", "content": context}]
+
+        messages = [self.get_system_prompt()]
+        if context:
+            messages.append({"role": "user", "content": [{"type": "text", "text": context}]})
+        if self.images:
+            for image in self.images:
+                messages[-1]["content"].append(image)
+                logging.info(f"Image added to content dictionary in messages list successfully")
         kwargs = dict(model=self.model_name, messages=messages, stream=True, extra_body=self.config["extra_api_parameters"])
         try:
             async with new_msg.channel.typing():
