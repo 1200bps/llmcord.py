@@ -101,7 +101,8 @@ class LLMCordBot:
 
     def get_system_prompt(self) -> Dict[str, str]:
         system_prompt_extras = [
-            f"The current UTC date and time are {dt.now().strftime('%Y-%m-%d %H:%M:%S')}."
+            f"The current UTC date and time are {dt.now().strftime('%Y-%m-%d %H:%M:%S')}.",
+            f"Avoid generating <metadata> blocks in your responses. These will be generated for you."
         ]
 
         return {
@@ -136,12 +137,14 @@ class LLMCordBot:
     def _is_message_allowed(self, msg: discord.Message) -> bool:
         allowed = (
             msg.channel.type in self.ALLOWED_CHANNEL_TYPES
-            and (msg.channel.type == discord.ChannelType.private or self.discord_client.user in msg.mentions)
+            and (msg.channel.type == discord.ChannelType.private or self.discord_client.user.id in [user.id for user in msg.mentions])
             and (not self.ALLOWED_CHANNEL_IDS or any(id in self.ALLOWED_CHANNEL_IDS for id in (msg.channel.id, getattr(msg.channel, "parent_id", None))))
             and (not self.ALLOWED_ROLE_IDS or (msg.channel.type != discord.ChannelType.private and any(role.id in self.ALLOWED_ROLE_IDS for role in msg.author.roles)))
         )
         if not allowed:
-            logging.info(f"Message not allowed: channel_type={msg.channel.type}, mentioned={self.discord_client.user in msg.mentions}, channel_id={msg.channel.id}")
+            # TODO: fix logspam
+            # logging.info(f"Message not allowed: channel_type={msg.channel.type}, mentioned={self.discord_client.user.id in [user.id for user in msg.mentions]}, channel_id={msg.channel.id}")
+            pass
         return allowed
 
     def _is_user_on_cooldown(self, user_id: int) -> bool:
@@ -207,7 +210,7 @@ class LLMCordBot:
             text = soup.get_text()
             # Limit to first 2000 words
             words = text.split()[:2000]
-            logging.info(' '.join(words))
+            logging.debug(' '.join(words))
             return ' '.join(words)
         except Exception as e:
             logging.error(f"Failed to extract text from URL {url}: {str(e)}")
