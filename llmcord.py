@@ -103,7 +103,6 @@ class LLMCordBot:
         system_prompt_extras = [
             f"The current UTC date and time are {dt.now().strftime('%Y-%m-%d %H:%M:%S')}."
         ]
-
         return {
             "role": "system",
             "content": "\n".join([self.config.get('system_prompt', '')] + system_prompt_extras),
@@ -179,12 +178,12 @@ class LLMCordBot:
         for group in grouped_messages:
             author_tag = f"<@{group[0].author.id}>"
             author_name = self._get_author_name(group[0])
-            content = "\n".join([message.content for message in group])
-            metadata = f"<metadata>\n<author_nick>{author_name}</author_nick>\n<author_name>{group[0].author.name}</author_name>\n<author_id>{author_tag}</author_id>\n<datetime>{group[-1].created_at.strftime('%Y-%m-%d %H:%M:%S')}</datetime>\n</metadata>\n\n\n"
-            final_history.append(f"{content}\n{metadata}")
+            content = "\n\n".join([message.content for message in group])
+            metadata = f"<metadata>\n<author_nick>{author_name}</author_nick>\n<author_name>{group[0].author.name}</author_name>\n<author_id>{author_tag}</author_id>\n<datetime>{group[-1].created_at.strftime('%Y-%m-%d %H:%M:%S')}</datetime>\n</metadata>\n\n\n\n"
+            final_history.append(f"{content}\n\n{metadata}")
 
         logging.info(f"Fetched {len(final_history)} grouped messages from channel history")
-        logging.info(f"{'\n'.join(final_history)}")
+        logging.debug(f"{'\n'.join(final_history)}")
         return "\n".join(final_history)
 
     def _get_author_name(self, message: discord.Message) -> str:
