@@ -100,10 +100,7 @@ class LLMCordBot:
 
     def get_system_prompt(self) -> Dict[str, str]:
         system_prompt_extras = [
-            f"File attachments are provided to you inline, at the bottom of the context.",
-            f"Current datetime: {dt.now().strftime('%Y-%m-%d %H:%M:%S')}.",
-            "Do not generate or include any metadata in your responses.",
-            "Never use XML-like tags in your responses."
+            f"The current date and time are {dt.now().strftime('%Y-%m-%d %H:%M:%S')}."
         ]
         if self.LLM_ACCEPTS_NAMES:
             system_prompt_extras.append("User's names are their Discord IDs and should be typed as '<@ID>'.")
