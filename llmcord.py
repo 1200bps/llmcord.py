@@ -72,7 +72,7 @@ class LLMCordBot:
 
         self.MAX_TEXT = self.config.get('max_text', 10000)
         self.MAX_IMAGES = self.config.get('max_images', 5) if self.LLM_ACCEPTS_IMAGES else 0
-        self.MAX_MESSAGES = self.config.get('max_messages', 100)
+        self.MAX_MESSAGES = self.config.get('max_messages', 50)
 
         self.USE_PLAIN_RESPONSES = self.config.get('use_plain_responses', False)
 
