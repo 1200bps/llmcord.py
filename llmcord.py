@@ -7,6 +7,7 @@ import requests
 import sys
 import re
 from typing import Optional, List, Dict, Any, AsyncGenerator
+from bs4 import BeautifulSoup
 
 import discord
 from openai import AsyncOpenAI
@@ -169,8 +170,9 @@ class LLMCordBot:
         return member.nick if member and member.nick else message.author.name
 
     async def _handle_attachments(self, msg: discord.Message):
-        logging.info(f"Handling attachments for message: {msg.id}")
+        logging.info(f"Handling attachments and URLs for message: {msg.id}")
         image_count = 0
+        urls = re.findall(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', msg.content)
         for attachment in msg.attachments:
             file_type = attachment.filename.split('.')[-1].lower()
             if file_type in ['png', 'jpg', 'jpeg', 'gif', 'webp'] and self.LLM_ACCEPTS_IMAGES:
@@ -191,6 +193,25 @@ class LLMCordBot:
                 logging.info(f"Added text/source file attachment: {attachment.filename}")
             else:
                 logging.warning(f"Unsupported file type: {attachment.filename}")
+        for url in urls:
+            url_text = await self._extract_text_from_url(url)
+            if url_text:
+                self.context += f"\n<webpage>\n<url>{url}</url>\n<text>\n{url_text}\n</text>\n</webpage>"
+                logging.info(f"Added webpage attachment: {url}")
+
+    async def _extract_text_from_url(self, url: str) -> str:
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, 'html.parser')
+            text = soup.get_text()
+            # Limit to first 2000 words
+            words = text.split()[:2000]
+            logging.info(' '.join(words))
+            return ' '.join(words)
+        except Exception as e:
+            logging.error(f"Failed to extract text from URL {url}: {str(e)}")
+            return ""
 
     def _create_image_data(self, attachment: discord.Attachment) -> Dict[str, Any]:
         return {
@@ -248,7 +269,6 @@ class LLMCordBot:
             # Check for metadata or any XML-like tags in the accumulated content
             if re.search(r'<\s*metadata\b|<\s*[a-zA-Z]+\b', response_contents[-1]):
                 logging.warning("Detected hallucinated metadata or XML-like tags in LLM response. Stopping inference.")
-                response_contents[-1] = ""
                 return False
 
             if len(response_contents[-1]) > self.MAX_MESSAGE_LENGTH:
