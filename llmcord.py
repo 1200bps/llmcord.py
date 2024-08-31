@@ -242,24 +242,25 @@ class LLMCordBot:
             prev_content = prev_chunk.choices[0].delta.content or ""
             curr_content = curr_chunk.choices[0].delta.content or ""
 
-            # Check for metadata or any XML-like tags
-            if re.search(r'<\s*metadata|<\s*[a-zA-Z]+>', prev_content):
+            # Accumulate content
+            response_contents[-1] += prev_content
+
+            # Check for metadata or any XML-like tags in the accumulated content
+            if re.search(r'<\s*metadata\b|<\s*[a-zA-Z]+\b', response_contents[-1]):
                 logging.warning("Detected hallucinated metadata or XML-like tags in LLM response. Stopping inference.")
+                response_contents[-1] = ""
                 return False
 
-            if response_contents or prev_content:
-                if len(response_contents[-1] + prev_content) > self.MAX_MESSAGE_LENGTH:
-                    response_contents += [""]
+            if len(response_contents[-1]) > self.MAX_MESSAGE_LENGTH:
+                response_contents += [""]
 
-                    if not self.USE_PLAIN_RESPONSES:
-                        embed = discord.Embed(description=(response_contents[-1] + self.STREAMING_INDICATOR), color=self.EMBED_COLOR_INCOMPLETE)
-                        response_msg = await new_msg.channel.send(embed=embed)
-                        self.msg_nodes[response_msg.id] = MsgNode(next_msg=new_msg)
-                        await self.msg_nodes[response_msg.id].lock.acquire()
-                        self.last_task_time = dt.now().timestamp()
-                        response_msgs += [response_msg]
-
-            response_contents[-1] += prev_content
+                if not self.USE_PLAIN_RESPONSES:
+                    embed = discord.Embed(description=(response_contents[-1] + self.STREAMING_INDICATOR), color=self.EMBED_COLOR_INCOMPLETE)
+                    response_msg = await new_msg.channel.send(embed=embed)
+                    self.msg_nodes[response_msg.id] = MsgNode(next_msg=new_msg)
+                    await self.msg_nodes[response_msg.id].lock.acquire()
+                    self.last_task_time = dt.now().timestamp()
+                    response_msgs += [response_msg]
 
             if not self.USE_PLAIN_RESPONSES:
                 is_final_edit = curr_chunk.choices[0].finish_reason is not None or len(response_contents[-1] + curr_content) > self.MAX_MESSAGE_LENGTH
