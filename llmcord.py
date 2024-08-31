@@ -101,8 +101,7 @@ class LLMCordBot:
 
     def get_system_prompt(self) -> Dict[str, str]:
         system_prompt_extras = [
-            f"The current UTC date and time are {dt.now().strftime('%Y-%m-%d %H:%M:%S')}.",
-            f"Avoid generating <metadata> blocks in your responses. These will be generated for you."
+            f"The current UTC date and time are {dt.now().strftime('%Y-%m-%d %H:%M:%S')}."
         ]
 
         return {
@@ -159,12 +158,34 @@ class LLMCordBot:
         logging.info(f"Fetching channel history for channel: {channel_name}")
         channel_history = []
         async for message in channel.history(limit=None):
-            author_tag = f"<@{message.author.id}>"
-            author_name = self._get_author_name(message)
-            content = f"{message.content}\n<metadata>\n<author_nick>{author_name}</author_nick>\n<author_name>{message.author.name}</author_name>\n<author_id>{author_tag}</author_id>\n<datetime>{message.created_at.strftime('%Y-%m-%d %H:%M:%S')}</datetime>\n</metadata>\n\n\n"
-            channel_history.append(content)
-        logging.info(f"Fetched {len(channel_history)} messages from channel history")
-        return "\n".join(reversed(channel_history))
+            channel_history.append(message)
+
+        grouped_messages = []
+        current_group = []
+        last_author_id = None
+
+        for message in reversed(channel_history):
+            if message.author.id != last_author_id:
+                if current_group:
+                    grouped_messages.append(current_group)
+                current_group = []
+            current_group.append(message)
+            last_author_id = message.author.id
+
+        if current_group:
+            grouped_messages.append(current_group)
+
+        final_history = []
+        for group in grouped_messages:
+            author_tag = f"<@{group[0].author.id}>"
+            author_name = self._get_author_name(group[0])
+            content = "\n".join([message.content for message in group])
+            metadata = f"<metadata>\n<author_nick>{author_name}</author_nick>\n<author_name>{group[0].author.name}</author_name>\n<author_id>{author_tag}</author_id>\n<datetime>{group[-1].created_at.strftime('%Y-%m-%d %H:%M:%S')}</datetime>\n</metadata>\n\n\n"
+            final_history.append(f"{content}\n{metadata}")
+
+        logging.info(f"Fetched {len(final_history)} grouped messages from channel history")
+        logging.info(f"{'\n'.join(final_history)}")
+        return "\n".join(final_history)
 
     def _get_author_name(self, message: discord.Message) -> str:
         if isinstance(message.channel, (discord.DMChannel, discord.GroupChannel)):
