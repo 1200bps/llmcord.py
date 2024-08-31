@@ -164,3 +164,4 @@ config.*
 restart.sh
 nohup.out
 ra-notion-prompt.txt
+*.log
