@@ -60,6 +60,7 @@ class LLMCordBot:
         self.msg_nodes: Dict[int, MsgNode] = {}
         self.last_task_time: Optional[float] = None
         self.api_client = APIClient(config)
+        self.context = ""
 
         self.LLM_ACCEPTS_IMAGES = any(x in self.config['model'] for x in ("gpt-4-turbo", "gpt-4o", "claude-3", "gemini", "llava", "vision"))
         self.LLM_ACCEPTS_NAMES = "openai/" in self.config['model']
@@ -124,12 +125,12 @@ class LLMCordBot:
 
         logging.info(f"Message received (user ID: {new_msg.author.id}, attachments: {len(new_msg.attachments)}:\n{new_msg.content}")
 
-        context = await self._fetch_channel_history(new_msg.channel)
+        self.context = await self._fetch_channel_history(new_msg.channel)
         
         self.images = []
         await self._handle_attachments(new_msg)
 
-        await self._generate_and_send_response(new_msg, context)
+        await self._generate_and_send_response(new_msg, self.context)
 
     def _is_message_allowed(self, msg: discord.Message) -> bool:
         allowed = (
