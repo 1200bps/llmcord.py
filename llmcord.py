@@ -156,7 +156,7 @@ class LLMCordBot:
         channel_name = getattr(channel, 'name', 'Direct Message')
         logging.info(f"Fetching channel history for channel: {channel_name}")
         channel_history = []
-        async for message in channel.history(limit=None):
+        async for message in channel.history(limit=self.MAX_MESSAGES):
             channel_history.append(message)
 
         grouped_messages = []
