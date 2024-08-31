@@ -2,7 +2,6 @@ import asyncio
 import base64
 from dataclasses import dataclass, field
 from datetime import datetime as dt
-import json
 import logging
 import requests
 import sys
@@ -74,7 +73,7 @@ class LLMCordBot:
         self.MAX_IMAGES = self.config.get('max_images', 5) if self.LLM_ACCEPTS_IMAGES else 0
         self.MAX_MESSAGES = self.config.get('max_messages', 50)
 
-        self.USE_PLAIN_RESPONSES = self.config.get('use_plain_responses', False)
+        self.USE_PLAIN_RESPONSES = self.config.get('use_plain_responses', True)
 
         self.EMBED_COLOR_COMPLETE = discord.Color.dark_green()
         self.EMBED_COLOR_INCOMPLETE = discord.Color.orange()
@@ -100,10 +99,8 @@ class LLMCordBot:
 
     def get_system_prompt(self) -> Dict[str, str]:
         system_prompt_extras = [
-            f"The current date and time are {dt.now().strftime('%Y-%m-%d %H:%M:%S')}."
+            f"The current UTC date and time are {dt.now().strftime('%Y-%m-%d %H:%M:%S')}."
         ]
-        if self.LLM_ACCEPTS_NAMES:
-            system_prompt_extras.append("User's names are their Discord IDs and should be typed as '<@ID>'.")
 
         return {
             "role": "system",
@@ -111,12 +108,12 @@ class LLMCordBot:
         }
 
     async def handle_message(self, new_msg: discord.Message):
-        logging.info(f"Handling message: {new_msg.content[:50]}...")
         if new_msg.author == self.discord_client.user:
             return
 
+        await asyncio.sleep(0.1)  # Small delay to reduce likelihood of duplicate message handling
+
         if not self._is_message_allowed(new_msg):
-            logging.info("Message not allowed")
             return
 
         if self._is_user_on_cooldown(new_msg.author.id):
@@ -125,24 +122,25 @@ class LLMCordBot:
 
         self._update_user_cooldown(new_msg.author.id)
 
-        await asyncio.sleep(1)
+        logging.info(f"Message received (user ID: {new_msg.author.id}, attachments: {len(new_msg.attachments)}:\n{new_msg.content}")
 
         context = await self._fetch_channel_history(new_msg.channel)
         
-        logging.info(f"Message received (user ID: {new_msg.author.id}, attachments: {len(new_msg.attachments)}:\n{new_msg.content}")
-
         self.images = []
         await self._handle_attachments(new_msg)
 
         await self._generate_and_send_response(new_msg, context)
 
     def _is_message_allowed(self, msg: discord.Message) -> bool:
-        return (
+        allowed = (
             msg.channel.type in self.ALLOWED_CHANNEL_TYPES
             and (msg.channel.type == discord.ChannelType.private or self.discord_client.user in msg.mentions)
             and (not self.ALLOWED_CHANNEL_IDS or any(id in self.ALLOWED_CHANNEL_IDS for id in (msg.channel.id, getattr(msg.channel, "parent_id", None))))
             and (not self.ALLOWED_ROLE_IDS or (msg.channel.type != discord.ChannelType.private and any(role.id in self.ALLOWED_ROLE_IDS for role in msg.author.roles)))
         )
+        if not allowed:
+            logging.info(f"Message not allowed: channel_type={msg.channel.type}, mentioned={self.discord_client.user in msg.mentions}, channel_id={msg.channel.id}")
+        return allowed
 
     def _is_user_on_cooldown(self, user_id: int) -> bool:
         last_ping_time = self.user_cooldowns.get(user_id)
@@ -151,8 +149,9 @@ class LLMCordBot:
     def _update_user_cooldown(self, user_id: int):
         self.user_cooldowns[user_id] = dt.now().timestamp()
 
-    async def _fetch_channel_history(self, channel: discord.TextChannel) -> str:
-        logging.info(f"Fetching channel history for channel: {channel.name}")
+    async def _fetch_channel_history(self, channel: discord.abc.Messageable) -> str:
+        channel_name = getattr(channel, 'name', 'Direct Message')
+        logging.info(f"Fetching channel history for channel: {channel_name}")
         channel_history = []
         async for message in channel.history(limit=None):
             author_tag = f"<@{message.author.id}>"
@@ -165,8 +164,8 @@ class LLMCordBot:
     def _get_author_name(self, message: discord.Message) -> str:
         if isinstance(message.channel, (discord.DMChannel, discord.GroupChannel)):
             return message.author.display_name
-        member = message.author.guild.get_member(message.author.id)
-        return member.nick if member.nick else message.author.name
+        member = message.guild.get_member(message.author.id)
+        return member.nick if member and member.nick else message.author.name
 
     async def _handle_attachments(self, msg: discord.Message):
         logging.info(f"Handling attachments for message: {msg.id}")
@@ -210,7 +209,7 @@ class LLMCordBot:
             messages.append({"role": "user", "content": [{"type": "text", "text": context}]})
         for image in self.images:
             messages[-1]["content"].append(image)
-            logging.info(f"Image added to content dictionary in messages list successfully")
+            logging.debug(f"Image added to content dictionary in messages list")
         
         kwargs = dict(extra_body=self.config.get("extra_api_parameters", {}))
 
@@ -321,7 +320,7 @@ class LLMCordBot:
         await self._prune_msg_nodes()
 
     async def _prune_msg_nodes(self):
-        logging.info("Pruning message nodes")
+        logging.debug("Pruning message nodes")
         if (num_nodes := len(self.msg_nodes)) > self.MAX_MESSAGE_NODES:
             for msg_id in sorted(self.msg_nodes.keys())[: num_nodes - self.MAX_MESSAGE_NODES]:
                 async with self.msg_nodes[msg_id].lock:
