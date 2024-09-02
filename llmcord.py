@@ -183,7 +183,6 @@ class LLMCordBot:
             final_history.append(f"{content}\n\n{metadata}")
 
         logging.info(f"Fetched {len(final_history)} grouped messages from channel history")
-        logging.debug(f"{'\n'.join(final_history)}")
         return "\n".join(final_history)
 
     def _get_author_name(self, message: discord.Message) -> str:
@@ -251,6 +250,8 @@ class LLMCordBot:
 
         messages = [self.get_system_prompt()]
         if context:
+            context += f"\n<response user=\"{self.discord_client.user.name}\">"
+            logging.debug(context)
             messages.append({"role": "user", "content": [{"type": "text", "text": context}]})
         for image in self.images:
             messages[-1]["content"].append(image)
@@ -290,7 +291,7 @@ class LLMCordBot:
             response_contents[-1] += prev_content
 
             # Check for metadata or any XML-like tags in the accumulated content
-            if re.search(r'<\s*metadata\b|<\s*[a-zA-Z]+\b', response_contents[-1]):
+            if re.search(r'<\s*metadata\b', response_contents[-1]):
                 logging.warning("Detected hallucinated metadata or XML-like tags in LLM response. Stopping inference.")
                 return False
 
