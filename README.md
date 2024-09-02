@@ -24,6 +24,11 @@ You can do things like:
 Additionally:
 - All messages in the context are tagged with author metadata, so the LLMs know who said what
 
+### Attachment and web browsing support
+The bot supports text file attachments (.md, .c, .py, .json, etcetera) and image attachments (when using vision models). The bot can view webpages, too—ping the bot with a link and it will see the full text contents of the page (up to 2,000 words).
+
+`TODO: web search support, webpage caching/RAG`
+
 ### Choose any LLM
 llmcord.py supports remote models from:
 - [OpenAI API](https://platform.openai.com/docs/models)
@@ -40,11 +45,9 @@ Or run a local model with:
 Or use any other OpenAI compatible API server.
 
 ### And more:
-- Supports image attachments when using a vision model (like gpt-4o, claude-3, llava, etc.)
-- Supports text file attachments (.txt, .py, .c, etc.)
 - Customizable system prompts per-agent
 - DM for private access (no @ required)
-- User identity aware (enhanced with OpenAI models)
+- User identity aware
 - Streamed responses (turns green when complete, automatically splits into separate messages when too long)
 - Displays helpful warning messages when appropriate (like "⚠️ Only using last 25 messages" when the customizable message limit is exceeded)
 - Caches message data in a size-managed (no memory leaks) and mutex-protected (no race conditions) global dictionary to maximize efficiency and minimize Discord API calls

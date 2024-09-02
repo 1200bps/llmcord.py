@@ -292,7 +292,7 @@ class LLMCordBot:
 
             # Check for metadata or any XML-like tags in the accumulated content
             if re.search(r'<\s*metadata\b', response_contents[-1]):
-                logging.warning("Detected hallucinated metadata or XML-like tags in LLM response. Stopping inference.")
+                logging.warning("Detected hallucinated metadata in LLM response. Stopping inference.")
                 return False
 
             if len(response_contents[-1]) > self.MAX_MESSAGE_LENGTH:
